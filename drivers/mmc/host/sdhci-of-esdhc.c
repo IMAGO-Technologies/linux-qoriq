@@ -597,6 +597,66 @@ static void esdhc_reset(struct sdhci_host *host, u8 mask)
 	sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
 }
 
+#define ESDHC_CLOCK_CONTROL	0x144
+#define ESDHC_LPBK_CLK_SEL	0x80000000
+#define ESDHC_CMD_CLK_CTL	0x00008000
+
+static void esdhc_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
+{
+	u16 ctrl_2;
+	u32 val;
+	u32 timeout;
+
+	ctrl_2 = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+	/* Select Bus Speed Mode for host */
+	ctrl_2 &= ~SDHCI_CTRL_UHS_MASK;
+	if ((uhs == MMC_TIMING_MMC_HS200) ||
+		(uhs == MMC_TIMING_UHS_SDR104))
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR104;
+	else if (uhs == MMC_TIMING_UHS_SDR12)
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR12;
+	else if (uhs == MMC_TIMING_UHS_SDR25)
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR25;
+	else if (uhs == MMC_TIMING_UHS_SDR50)
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR50;
+	else if ((uhs == MMC_TIMING_UHS_DDR50) ||
+		 (uhs == MMC_TIMING_MMC_DDR52))
+		ctrl_2 |= SDHCI_CTRL_UHS_DDR50;
+	else if (uhs == MMC_TIMING_MMC_HS400)
+		ctrl_2 |= SDHCI_CTRL_HS400; /* Non-standard */
+
+	if ((uhs == MMC_TIMING_UHS_DDR50) ||
+	    (uhs == MMC_TIMING_MMC_DDR52)) {
+		esdhc_clock_enable(host, false);
+		sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
+		val = sdhci_readl(host, ESDHC_CLOCK_CONTROL);
+		val |= (ESDHC_LPBK_CLK_SEL | ESDHC_CMD_CLK_CTL);
+		sdhci_writel(host, val, ESDHC_CLOCK_CONTROL);
+		esdhc_clock_enable(host, true);
+
+		esdhc_clock_enable(host, false);
+		val = sdhci_readl(host, ESDHC_DMA_SYSCTL);
+		val |= ESDHC_FLUSH_ASYNC_FIFO;
+		sdhci_writel(host, val, ESDHC_DMA_SYSCTL);
+		/* Wait max 20 ms */
+		timeout = 20;
+		val = ESDHC_FLUSH_ASYNC_FIFO;
+		while (sdhci_readl(host, ESDHC_DMA_SYSCTL) & val) {
+			if (timeout == 0) {
+				pr_err("%s: FAF bit is auto cleaned failed.\n",
+					mmc_hostname(host->mmc));
+
+				break;
+			}
+			timeout--;
+			mdelay(1);
+		}
+		esdhc_clock_enable(host, true);
+	} else
+		sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
+}
+
+
 /* The SCFG, Supplemental Configuration Unit, provides SoC specific
  * configuration and status registers for the device. There is a
  * SDHC IO VSEL control register on SCFG for some platforms. It's
@@ -672,6 +732,9 @@ static int esdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	struct sdhci_host *host = mmc_priv(mmc);
 	u32 val;
 
+	if (host->timing == MMC_TIMING_UHS_DDR50)
+		return 0;
+
 	/* Use tuning block for tuning procedure */
 	esdhc_clock_enable(host, false);
 	val = sdhci_readl(host, ESDHC_DMA_SYSCTL);
@@ -729,7 +792,7 @@ static const struct sdhci_ops sdhci_esdhc_be_ops = {
 	.adma_workaround = esdhc_of_adma_workaround,
 	.set_bus_width = esdhc_pltfm_set_bus_width,
 	.reset = esdhc_reset,
-	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.set_uhs_signaling = esdhc_set_uhs_signaling,
 };
 
 static const struct sdhci_ops sdhci_esdhc_le_ops = {
@@ -746,7 +809,7 @@ static const struct sdhci_ops sdhci_esdhc_le_ops = {
 	.adma_workaround = esdhc_of_adma_workaround,
 	.set_bus_width = esdhc_pltfm_set_bus_width,
 	.reset = esdhc_reset,
-	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.set_uhs_signaling = esdhc_set_uhs_signaling,
 };
 
 static const struct sdhci_pltfm_data sdhci_esdhc_be_pdata = {
