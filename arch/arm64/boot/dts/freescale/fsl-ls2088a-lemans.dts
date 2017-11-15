@@ -1,0 +1,290 @@
+/*
+ * Device Tree file for IMAGO VisionBox LeMans
+ *
+ * Copyright (C) 2016, IMAGO Technologies GmbH
+ *
+ * Ralf Goebel <ralf.goebel@imago-technologies.com>
+ *
+ * This file is licensed under the terms of the GNU General Public
+ * License version 2.  This program is licensed "as is" without any
+ * warranty of any kind, whether express or implied.
+ */
+
+/dts-v1/;
+
+#include "fsl-ls2088a.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "IMAGO VisionBox LE MANS";
+	compatible = "fsl,ls2088a-rdb", "fsl,ls2088a";
+
+  	/*aliases {
+		serial0 = &serial0;
+	};*/
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	/* we use GPIO4_06 / IRQ08 for signaling power-off to the FPGA */
+	gpio_poweroff {
+		compatible = "gpio-poweroff";
+		gpios = <&gpio3 6 GPIO_ACTIVE_LOW>;
+	};
+
+/*	cpus {
+		L2_0: l2-cache0 {
+			compatible = "cache";
+		};
+	
+		L2_1: l2-cache1 {
+			compatible = "cache";
+		};
+	
+		L2_2: l2-cache2 {
+			compatible = "cache";
+		};
+	
+		L2_3: l2-cache3 {
+			compatible = "cache";
+		};
+	};*/
+};
+
+/*&cpu0 {
+	next-level-cache = <&L2_0>;
+};
+
+&cpu1 {
+	next-level-cache = <&L2_0>;
+};
+
+&cpu2 {
+	next-level-cache = <&L2_1>;
+};
+
+&cpu3 {
+	next-level-cache = <&L2_1>;
+};
+
+&cpu4 {
+	next-level-cache = <&L2_2>;
+};
+
+&cpu5 {
+	next-level-cache = <&L2_2>;
+};
+
+&cpu6 {
+	next-level-cache = <&L2_3>;
+};
+
+&cpu7 {
+	next-level-cache = <&L2_3>;
+};*/
+
+&serial1 {
+	status = "disabled";
+};
+
+/* Disable unused PCIe controller */
+&pcie1 {
+	status = "disabled";
+};
+
+&esdhc {
+	status = "okay";
+	sd-uhs-ddr50;
+};
+
+&ifc {
+	status = "disabled";
+};
+
+&ftm0 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	pca9547@75 {
+		compatible = "nxp,pca9547";
+		reg = <0x75>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-mux-never-disable;
+
+		i2c@2 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x2>;
+
+			adt7481@4c {
+				compatible = "adi,adt7461";
+				reg = <0x4c>;
+			};
+		};
+
+		i2c@3 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x03>;
+			rtc@68 {
+				compatible = "dallas,ds3232";
+				reg = <0x68>;
+			};
+		};
+
+		i2c@6 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x6>;
+
+			pca9538a@70 {
+				compatible = "nxp,pca9538";
+				reg = <0x70>;
+				pinctrl-names = "default";
+//				pinctrl-0 = <&pinctrl_pca9505>;
+//				interrupts = <0 2 0x4>; /* Level high type */
+			};
+		};
+
+		i2c@7 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x7>;
+
+			pca9538b@70 {
+				compatible = "nxp,pca9538";
+				reg = <0x70>;
+				pinctrl-names = "default";
+//				pinctrl-0 = <&pinctrl_pca9505>;
+//				interrupts = <0 2 0x4>; /* Level high type */
+			};
+		};
+	};
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "disabled";
+};
+
+&i2c3 {
+	status = "disabled";
+};
+
+&dspi {
+	status = "disabled";
+};
+
+&qspi {
+	status = "okay";
+	qflash0: n25q128 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "st,n25q128a11";
+		spi-max-frequency = <10000000>;
+		m25p,fast-read;
+		reg = <0>;
+	};
+};
+
+&sata0 {
+	status = "okay";
+};
+
+&sata1 {
+	status = "disabled";
+};
+
+&usb0 {
+	status = "okay";
+};
+
+&usb1 {
+	status = "okay";
+};
+
+&emdio1 {
+	status = "disabled";
+};
+
+&emdio2 {
+	/* Marvell 88E1548 QSGMII Phy */
+	mdio2_phy1: emdio2_phy@1 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		interrupts = <0 1 0x4>; /* Level high type */
+		reg = <0x0>;
+		phy-connection-type = "qsgmii";
+		marvell,reg-init = <3 0x10 0 0x4877>,	/* LED Function Control Register */
+			<3 0x12 0 0x0B05>;					/* LED Timer Control Register */
+	};
+	mdio2_phy2: emdio2_phy@2 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		interrupts = <0 1 0x4>; /* Level high type */
+		reg = <0x1>;
+		phy-connection-type = "qsgmii";
+		marvell,reg-init = <3 0x10 0 0x4877>,
+			<3 0x12 0 0x0B05>;
+	};
+	mdio2_phy3: emdio2_phy@3 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		interrupts = <0 1 0x4>; /* Level high type */
+		reg = <0x2>;
+		phy-connection-type = "qsgmii";
+		marvell,reg-init = <3 0x10 0 0x4877>,
+			<3 0x12 0 0x0B05>;
+	};
+	mdio2_phy4: emdio2_phy@4 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		interrupts = <0 1 0x4>; /* Level high type */
+		reg = <0x3>;
+		phy-connection-type = "qsgmii";
+		marvell,reg-init = <3 0x10 0 0x4877>,
+			<3 0x12 0 0x0B05>;
+	};
+};
+
+&pcs_mdio1 {
+                pcs_phy1: ethernet-phy@0 {
+                backplane-mode = "10gbase-kr";
+                compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x11>;		/* MDIO address is configured with the SerDes Register XFIHCR1 by U-Boot */
+                fsl,lane-handle = <&serdes1>;
+                fsl,lane-reg = <0x9C0 0x40>;/* lane H */
+        };
+};
+
+&pcs_mdio2 {
+                pcs_phy2: ethernet-phy@0 {
+                backplane-mode = "10gbase-kr";
+                compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x12>;		/* MDIO address is configured with the SerDes Register XFIHCR1 by U-Boot */
+                fsl,lane-handle = <&serdes1>;
+                fsl,lane-reg = <0x980 0x40>;/* lane G */
+        };
+};
+
+&dpmac1 {
+	phy-handle = <&pcs_phy1>;
+};
+&dpmac2 {
+	phy-handle = <&pcs_phy2>;
+};
+
+&dpmac13 {
+	phy-handle = <&mdio2_phy1>;
+};
+&dpmac14 {
+	phy-handle = <&mdio2_phy2>;
+};
+&dpmac15 {
+	phy-handle = <&mdio2_phy3>;
+};
+&dpmac16 {
+	phy-handle = <&mdio2_phy4>;
+};
