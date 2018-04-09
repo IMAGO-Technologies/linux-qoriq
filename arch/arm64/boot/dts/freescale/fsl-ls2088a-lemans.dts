@@ -251,7 +251,7 @@
 
 &pcs_mdio1 {
                 pcs_phy1: ethernet-phy@0 {
-                backplane-mode = "10gbase-kr";
+                backplane-mode = "xfi";
                 compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0x11>;		/* MDIO address is configured with the SerDes Register XFIHCR1 by U-Boot */
                 fsl,lane-handle = <&serdes1>;
@@ -261,7 +261,7 @@
 
 &pcs_mdio2 {
                 pcs_phy2: ethernet-phy@0 {
-                backplane-mode = "10gbase-kr";
+                backplane-mode = "xfi";
                 compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0x12>;		/* MDIO address is configured with the SerDes Register XFIHCR1 by U-Boot */
                 fsl,lane-handle = <&serdes1>;
