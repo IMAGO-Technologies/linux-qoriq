@@ -34,7 +34,10 @@
 
 unsigned int lro_mode;
 unsigned int page_mode;
-unsigned int tx_qos;
+unsigned int tx_qos = 1;
+module_param(tx_qos, uint, 0444);
+MODULE_PARM_DESC(tx_qos, "0: disable ,\n"
+			 "1: enable (default), guarantee no packet drop at TMU level\n");
 unsigned int pfe_pkt_size;
 unsigned int pfe_pkt_headroom;
 unsigned int emac_txq_cnt;
@@ -563,6 +566,39 @@ static void hif_lib_tmu_credit_init(struct pfe *pfe)
 			pfe->tmu_credit.tx_credit[i][q] =
 					pfe->tmu_credit.tx_credit_max[i][q];
 		}
+}
+
+/* __hif_lib_update_credit
+ *
+ * @param[in] client	hif client context
+ * @param[in] queue	queue number in match with TMU
+ */
+void __hif_lib_update_credit(struct hif_client_s *client, unsigned int queue)
+{
+	unsigned int tmu_tx_packets, tmp;
+
+	if (tx_qos) {
+		tmu_tx_packets = be32_to_cpu(pe_dmem_read(TMU0_ID +
+			client->id, (TMU_DM_TX_TRANS + (queue * 4)), 4));
+
+		/* tx_packets counter overflowed */
+		if (tmu_tx_packets >
+		    pfe->tmu_credit.tx_packets[client->id][queue]) {
+			tmp = UINT_MAX - tmu_tx_packets +
+			pfe->tmu_credit.tx_packets[client->id][queue];
+
+			pfe->tmu_credit.tx_credit[client->id][queue] =
+			pfe->tmu_credit.tx_credit_max[client->id][queue] - tmp;
+		} else {
+		/* TMU tx <= pfe_eth tx, normal case or both OF since
+		 * last time
+		 */
+			pfe->tmu_credit.tx_credit[client->id][queue] =
+			pfe->tmu_credit.tx_credit_max[client->id][queue] -
+			(pfe->tmu_credit.tx_packets[client->id][queue] -
+			tmu_tx_packets);
+		}
+	}
 }
 
 int pfe_hif_lib_init(struct pfe *pfe)

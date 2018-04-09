@@ -594,6 +594,7 @@ static const u16 phy2speed[] = {
 	[PHY_INTERFACE_MODE_RGMII_RXID]	= SPEED_1000,
 	[PHY_INTERFACE_MODE_RGMII_TXID]	= SPEED_1000,
 	[PHY_INTERFACE_MODE_RTBI]		= SPEED_1000,
+	[PHY_INTERFACE_MODE_QSGMII]		= SPEED_1000,
 	[PHY_INTERFACE_MODE_XGMII]		= SPEED_10000
 };
 
@@ -621,6 +622,9 @@ static struct platform_device *dpaa_eth_add_device(int fman_id,
 		ret = -ENOMEM;
 		goto no_mem;
 	}
+
+	pdev->dev.of_node = node;
+	pdev->dev.parent = priv->dev;
 
 	ret = platform_device_add_data(pdev, &data, sizeof(data));
 	if (ret)

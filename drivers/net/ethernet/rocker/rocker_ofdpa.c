@@ -1505,8 +1505,8 @@ static int ofdpa_port_ipv4_nh(struct ofdpa_port *ofdpa_port,
 		*index = entry->index;
 		resolved = false;
 	} else if (removing) {
-		ofdpa_neigh_del(trans, found);
 		*index = found->index;
+		ofdpa_neigh_del(trans, found);
 	} else if (updating) {
 		ofdpa_neigh_update(found, trans, NULL, false);
 		resolved = !is_zero_ether_addr(found->eth_dst);
@@ -1939,10 +1939,10 @@ static void ofdpa_port_fdb_learn_work(struct work_struct *work)
 
 	rtnl_lock();
 	if (learned && removing)
-		call_switchdev_notifiers(SWITCHDEV_FDB_DEL,
+		call_switchdev_notifiers(SWITCHDEV_FDB_DEL_TO_BRIDGE,
 					 lw->ofdpa_port->dev, &info.info);
 	else if (learned && !removing)
-		call_switchdev_notifiers(SWITCHDEV_FDB_ADD,
+		call_switchdev_notifiers(SWITCHDEV_FDB_ADD_TO_BRIDGE,
 					 lw->ofdpa_port->dev, &info.info);
 	rtnl_unlock();
 

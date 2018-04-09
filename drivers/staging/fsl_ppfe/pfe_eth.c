@@ -293,10 +293,10 @@ static int pfe_eth_sysfs_init(struct net_device *ndev)
 	/* Initialize the default values */
 
 	/*
-	 * By default, packets without conntrack will use this default high
+	 * By default, packets without conntrack will use this default low
 	 * priority queue
 	 */
-	priv->default_priority = 15;
+	priv->default_priority = 0;
 
 	/* Create our sysfs files */
 	err = device_create_file(&ndev->dev, &dev_attr_default_priority);
@@ -577,7 +577,9 @@ static int pfe_eth_get_settings(struct net_device *ndev,
 	if (!phydev)
 		return -ENODEV;
 
-	return phy_ethtool_ksettings_get(phydev, cmd);
+	phy_ethtool_ksettings_get(phydev, cmd);
+
+	return 0;
 }
 
 /*
@@ -921,7 +923,8 @@ static int pfe_eth_mdio_init(struct pfe_eth_priv_s *priv,
 			     struct ls1012a_mdio_platform_data *minfo)
 {
 	struct mii_bus *bus;
-	int rc;
+	int rc, ii;
+	struct phy_device *phydev;
 
 	netif_info(priv, drv, priv->ndev, "%s\n", __func__);
 	pr_info("%s\n", __func__);
@@ -960,6 +963,31 @@ static int pfe_eth_mdio_init(struct pfe_eth_priv_s *priv,
 	}
 
 	priv->mii_bus = bus;
+
+	/* For clause 45 we need to call get_phy_device() with it's
+	 * 3rd argument as true and then register the phy device
+	 * via phy_device_register()
+	 */
+
+	if (priv->einfo->mii_config == PHY_INTERFACE_MODE_2500SGMII) {
+		for (ii = 0; ii < NUM_GEMAC_SUPPORT; ii++) {
+			phydev = get_phy_device(priv->mii_bus,
+					priv->einfo->phy_id + ii, true);
+			if (!phydev || IS_ERR(phydev)) {
+				rc = -EIO;
+				netdev_err(priv->ndev, "fail to get device\n");
+				goto err1;
+			}
+			rc = phy_device_register(phydev);
+			if (rc) {
+				phy_device_free(phydev);
+				netdev_err(priv->ndev,
+					"phy_device_register() failed\n");
+				goto err1;
+			}
+		}
+	}
+
 	pfe_eth_mdio_reset(bus);
 
 	return 0;
@@ -1145,8 +1173,9 @@ static void ls1012a_configure_serdes(struct net_device *ndev)
 	struct pfe_eth_priv_s *priv = pfe->eth.eth_priv[0];
 	int sgmii_2500 = 0;
 	struct mii_bus *bus = priv->mii_bus;
+	u16 value = 0;
 
-	if (priv->einfo->mii_config == PHY_INTERFACE_MODE_SGMII_2500)
+	if (priv->einfo->mii_config == PHY_INTERFACE_MODE_2500SGMII)
 		sgmii_2500 = 1;
 
 	netif_info(priv, drv, ndev, "%s\n", __func__);
@@ -1162,14 +1191,16 @@ static void ls1012a_configure_serdes(struct net_device *ndev)
 		pfe_eth_mdio_write(bus, 0, 0x4, 0x4001);
 		pfe_eth_mdio_write(bus, 0, 0x12, 0xa120);
 		pfe_eth_mdio_write(bus, 0, 0x13, 0x7);
+		/* Autonegotiation need to be disabled for 2.5G SGMII mode*/
+		value = 0x0140;
+		pfe_eth_mdio_write(bus, 0, 0x0, value);
 	} else {
 		pfe_eth_mdio_write(bus, 0, 0x14, 0xb);
 		pfe_eth_mdio_write(bus, 0, 0x4, 0x1a1);
 		pfe_eth_mdio_write(bus, 0, 0x12, 0x400);
 		pfe_eth_mdio_write(bus, 0, 0x13, 0x0);
+		pfe_eth_mdio_write(bus, 0, 0x0, 0x1140);
 	}
-
-	pfe_eth_mdio_write(bus, 0, 0x0, 0x1140);
 }
 
 /*
@@ -1195,7 +1226,7 @@ static int pfe_phy_init(struct net_device *ndev)
 	netif_info(priv, drv, ndev, "%s: %s\n", __func__, phy_id);
 	interface = priv->einfo->mii_config;
 	if ((interface == PHY_INTERFACE_MODE_SGMII) ||
-	    (interface == PHY_INTERFACE_MODE_SGMII_2500)) {
+	    (interface == PHY_INTERFACE_MODE_2500SGMII)) {
 		/*Configure SGMII PCS */
 		if (pfe->scfg) {
 			/*Config MDIO from serdes */
@@ -1563,10 +1594,17 @@ static int pfe_eth_might_stop_tx(struct pfe_eth_priv_s *priv, int queuenum,
 				 unsigned int n_segs)
 {
 	ktime_t kt;
+	int tried = 0;
 
+try_again:
 	if (unlikely((__hif_tx_avail(&pfe->hif) < n_desc) ||
-		     (hif_lib_tx_avail(&priv->client, queuenum) < n_desc) ||
+	(hif_lib_tx_avail(&priv->client, queuenum) < n_desc) ||
 	(hif_lib_tx_credit_avail(pfe, priv->id, queuenum) < n_segs))) {
+		if (!tried) {
+			__hif_lib_update_credit(&priv->client, queuenum);
+			tried = 1;
+			goto try_again;
+		}
 #ifdef PFE_ETH_TX_STATS
 		if (__hif_tx_avail(&pfe->hif) < n_desc) {
 			priv->stop_queue_hif[queuenum]++;
@@ -1689,8 +1727,10 @@ static void pfe_eth_flush_tx(struct pfe_eth_priv_s *priv)
 
 	netif_info(priv, tx_done, priv->ndev, "%s\n", __func__);
 
-	for (ii = 0; ii < emac_txq_cnt; ii++)
+	for (ii = 0; ii < emac_txq_cnt; ii++) {
 		pfe_eth_flush_txQ(priv, ii, 0, 0);
+		__hif_lib_update_credit(&priv->client, ii);
+	}
 }
 
 void pfe_tx_get_req_desc(struct sk_buff *skb, unsigned int *n_desc, unsigned int

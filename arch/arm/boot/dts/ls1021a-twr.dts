@@ -241,6 +241,10 @@
 	};
 };
 
+&esdhc {
+        status = "okay";
+};
+
 &sai1 {
 	status = "okay";
 };
@@ -254,5 +258,13 @@
 };
 
 &uart1 {
+	status = "okay";
+};
+
+&can0 {
+	status = "okay";
+};
+
+&can1 {
 	status = "okay";
 };

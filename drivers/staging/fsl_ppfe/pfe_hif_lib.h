@@ -146,7 +146,7 @@ struct tx_queue_desc {
 #define PFE_BUF_SIZE		2048
 #define PFE_PKT_HEADROOM	128
 
-#define SKB_SHARED_INFO_SIZE   (sizeof(struct skb_shared_info))
+#define SKB_SHARED_INFO_SIZE   SKB_DATA_ALIGN(sizeof(struct skb_shared_info))
 #define PFE_PKT_SIZE		(PFE_BUF_SIZE - PFE_PKT_HEADROOM \
 				 - SKB_SHARED_INFO_SIZE)
 #define MAX_L2_HDR_SIZE		14	/* Not correct for VLAN/PPPoE */
@@ -185,6 +185,7 @@ void *hif_lib_tx_get_next_complete(struct hif_client_s *client, int qno,
 void *hif_lib_receive_pkt(struct hif_client_s *client, int qno, int *len, int
 				*ofst, unsigned int *rx_ctrl,
 				unsigned int *desc_ctrl, void **priv_data);
+void __hif_lib_update_credit(struct hif_client_s *client, unsigned int queue);
 void hif_lib_set_rx_cpu_affinity(struct hif_client_s *client, int cpu_id);
 void hif_lib_set_tx_queue_nocpy(struct hif_client_s *client, int qno, int
 					enable);

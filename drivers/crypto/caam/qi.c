@@ -109,7 +109,7 @@ int caam_qi_enqueue(struct device *qidev, struct caam_drv_req *req)
 
 	fd.cmd = 0;
 	fd.format = qm_fd_compound;
-	fd.cong_weight = req->fd_sgt[1].length;
+	fd.cong_weight = caam32_to_cpu(req->fd_sgt[1].length);
 	fd.addr = dma_map_single(qidev, req->fd_sgt, sizeof(req->fd_sgt),
 			      DMA_BIDIRECTIONAL);
 	if (dma_mapping_error(qidev, fd.addr)) {
@@ -576,8 +576,15 @@ static enum qman_cb_dqrr_result caam_rsp_fq_dqrr_cb(struct qman_portal *p,
 		return qman_cb_dqrr_stop;
 
 	fd = &dqrr->fd;
-	if (unlikely(fd->status))
-		dev_err(qidev, "Error: %#x in CAAM response FD\n", fd->status);
+	if (unlikely(fd->status)) {
+		u32 ssrc = fd->status & JRSTA_SSRC_MASK;
+		u8 err_id = fd->status & JRSTA_CCBERR_ERRID_MASK;
+
+		if (ssrc != JRSTA_SSRC_CCB_ERROR ||
+		    err_id != JRSTA_CCBERR_ERRID_ICVCHK)
+			dev_err(qidev, "Error: %#x in CAAM response FD\n",
+				fd->status);
+	}
 
 	if (unlikely(fd->format != fd->format)) {
 		dev_err(qidev, "Non-compound FD from CAAM\n");
