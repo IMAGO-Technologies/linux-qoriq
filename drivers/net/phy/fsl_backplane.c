@@ -800,7 +800,7 @@ static int is_link_up(struct phy_device *phydev)
 	struct fsl_xgkr_inst *inst = phydev->priv;
 	int val;
 
-	if (inst->bp_mode == PHY_BACKPLANE_XFI) {
+	if (phydev->speed == SPEED_10000 && inst->bp_mode == PHY_BACKPLANE_XFI) {
 		phy_read_mmd(phydev, MDIO_MMD_PCS, FSL_XFI_PCS_SR1);
 		val = phy_read_mmd(phydev, MDIO_MMD_PCS, FSL_XFI_PCS_SR1);
 		return (val & FSL_PCS_RX_LINK_STAT_MASK) ? 1 : 0;
@@ -1313,14 +1313,13 @@ static int fsl_backplane_aneg_done(struct phy_device *phydev)
 
 static int fsl_backplane_config_aneg(struct phy_device *phydev)
 {
-	struct fsl_xgkr_inst *inst = phydev->priv;
-	
-	if (inst->bp_mode == PHY_BACKPLANE_XFI) {
-		phydev->supported |= SUPPORTED_10000baseR_FEC;
-		init_inst(inst, 0);
-	} else if (phydev->speed == SPEED_10000) {
+	if (phydev->speed == SPEED_10000) {
+		struct fsl_xgkr_inst *inst = phydev->priv;
 		phydev->supported |= SUPPORTED_10000baseKR_Full;
-		start_xgkr_an(phydev);
+		if (inst->bp_mode == PHY_BACKPLANE_XFI)
+			init_inst(inst, 0);
+		else
+			start_xgkr_an(phydev);
 	} else if (phydev->speed == SPEED_1000) {
 		phydev->supported |= SUPPORTED_1000baseKX_Full;
 		start_1gkx_an(phydev);
@@ -1361,7 +1360,7 @@ static int fsl_backplane_read_status(struct phy_device *phydev)
 
 	if (is_link_up(phydev))
 		phydev->link = 1;
-	else if (inst->bp_mode != PHY_BACKPLANE_XFI)
+	else
 		phydev->link = 0;
 
 	return 0;
