@@ -669,7 +669,8 @@ static void esdhc_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
 		esdhc_clock_enable(host, false);
 		sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
 		val = sdhci_readl(host, ESDHC_CLOCK_CONTROL);
-		val |= (ESDHC_LPBK_CLK_SEL | ESDHC_CMD_CLK_CTL);
+		val |= ESDHC_LPBK_CLK_SEL;	// SD card clock is loopbacked from external pin
+//		val |= ESDHC_CMD_CLK_CTL;	// Command logic clock is 25% shifted early from data logic clock
 		sdhci_writel(host, val, ESDHC_CLOCK_CONTROL);
 		esdhc_clock_enable(host, true);
 
